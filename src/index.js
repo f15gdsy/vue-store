@@ -1,42 +1,58 @@
-module.exports = (function () {
-    return function install(Vue, data) {
-        var key,
-            store = new Vue({
-                data: data || {}
-            });
+import Vue from 'vue'
 
-        function indexGet(obj, i) { return obj[i]; }
-        
-        function indexSet(key, val, obj) {
-            if (key.length < 2) { 
-                obj[key[0]] = val;
-            } else {
-                if (!obj[key[0]]) obj[key[0]] = {};
-                
-                obj = obj[key.shift()];
-                
-                indexSet(key, val, obj);
-            }  
-        }
+function indexGet(obj, i) {
+  return obj[i]
+}
 
-        Object.defineProperties(Vue.prototype, {
-            $store: {
-                get: function() {
-                    var _this = this;
-
-                    store.set = function (key, val) { indexSet(key.split('.'), val, store); return store; }
-                    store.watch = function (key, func) { store.$watch(key, func.bind(_this)); return store; }
-                    store.get = function (key) {
-                        var val = key.split('.').reduce(indexGet, store);
-
-                        if (typeof val === 'function') { return val.bind(_this); }
-
-                        return val;
-                    }
-
-                    return store;
-                }
-            }
-        });
+function indexSet(keys, val, obj) {
+  if (keys.length < 2) {
+    obj[keys[0]] = val
+  } else {
+    if (!obj[keys[0]]) {
+      obj[keys[0]] = {}
     }
-})();
+    obj = obj[keys.shift()]
+    indexSet(keys, val, obj)
+  }
+}
+
+class StoreLite {
+  constructor(data) {
+    this.core = new Vue({
+      data: data || {}
+    })
+
+    this.core.get = (...args) => this.get(...args)
+    this.core.set = (...args) => this.set(...args)
+    this.core.watch = (...args) => this.watch(...args)
+  }
+
+  get(key) {
+    const val = key.split('.').reduce(indexGet, this.core)
+
+    if (typeof val === 'function') {
+      return val.bind(this.core)
+    }
+
+    return val
+  }
+
+  set(key, val) {
+    indexSet(key.split('.'), val, this.core)
+  }
+
+  watch(key, func) {
+    this.core.$watch(key, func)
+  }
+}
+
+function install(V, data) {
+  const storeLite = new StoreLite(data)
+
+  V.prototype.$store = storeLite.core
+}
+
+export default {
+  StoreLite,
+  install
+}
